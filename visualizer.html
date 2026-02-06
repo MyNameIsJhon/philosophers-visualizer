@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Philosophers Visualizer</title>
+<style>
+:root{--bg:#1a1a2e;--bg2:#16213e;--bg3:#0f3460;--text:#e0e0e0;--text-dim:#8888aa;--accent:#e94560;--eating:#00c853;--sleeping:#448aff;--thinking:#ffd740;--fork:#ff9100;--dead:#e94560;--has-fork:#00bcd4;--border:#2a2a4a;--error:#e94560;--warn:#ffa726;--info:#42a5f5;--ok:#66bb6a}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Courier New',monospace;background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden}
+header{background:var(--bg2);padding:8px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid var(--border)}
+header h1{font-size:16px;letter-spacing:2px}
+header h1 span{color:var(--accent)}
+#legend{display:flex;gap:10px;font-size:9px}
+.legend-item{display:flex;align-items:center;gap:3px}
+.legend-dot{width:7px;height:7px;border-radius:50%}
+
+/* Input */
+#input-panel{background:var(--bg2);padding:12px 20px;border-bottom:2px solid var(--border);display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
+#input-panel textarea{flex:1;min-width:240px;height:72px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px;font-family:inherit;font-size:11px;resize:vertical}
+.params-group{display:flex;flex-direction:column;gap:3px;min-width:160px}
+.params-group label{font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px}
+.params-group input{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:3px 5px;font-family:inherit;font-size:11px;width:100%}
+.params-group input:focus{border-color:var(--accent);outline:none}
+.params-row{display:flex;gap:5px}
+.params-row>div{flex:1;display:flex;flex-direction:column;gap:2px}
+#input-panel .btn-group{display:flex;flex-direction:column;gap:4px;justify-content:center}
+.btn{padding:6px 12px;border:none;border-radius:4px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:bold;transition:opacity .2s;white-space:nowrap}
+.btn:hover{opacity:.85}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-secondary{background:var(--bg3);color:var(--text)}
+.btn-sm{padding:3px 8px;font-size:10px}
+#file-input{display:none}
+
+/* Main Layout */
+#main{display:none;height:calc(100vh - 160px)}
+#main.active{display:flex}
+
+/* Viz Area */
+#viz-area{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+#canvas-wrapper{flex:1;position:relative;overflow:hidden;min-height:0}
+#canvas-wrapper canvas{display:block;width:100%;height:100%}
+
+/* Bottom Panel */
+#bottom-panel{background:var(--bg2);border-top:2px solid var(--border);display:flex;flex-direction:column}
+#playback-bar{display:flex;align-items:center;gap:8px;padding:5px 12px;border-bottom:1px solid var(--border)}
+#playback-bar .btn{padding:4px 10px;font-size:10px}
+#speed-select{background:var(--bg);color:var(--text);border:1px solid var(--border);padding:2px;border-radius:3px;font-family:inherit;font-size:10px}
+#time-display{font-size:11px;min-width:65px;text-align:center;color:var(--text-dim)}
+#filter-info{font-size:10px;margin-left:auto;display:flex;align-items:center;gap:6px}
+#filter-info .filter-label{color:var(--accent);font-weight:bold}
+#filter-info .btn{padding:2px 6px;font-size:9px}
+
+#tl-wrapper{overflow-y:auto;max-height:240px;cursor:crosshair;position:relative}
+#tl-canvas{display:block}
+
+/* Sidebar */
+#sidebar{width:320px;background:var(--bg2);border-left:2px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.sidebar-section{padding:8px 10px;border-bottom:1px solid var(--border)}
+.sidebar-section h3{font-size:11px;color:var(--accent);margin-bottom:5px;text-transform:uppercase;letter-spacing:1px}
+
+/* Tabs */
+.tab-bar{display:flex;border-bottom:2px solid var(--border)}
+.tab-btn{flex:1;padding:6px;background:none;border:none;color:var(--text-dim);font-family:inherit;font-size:10px;font-weight:bold;cursor:pointer;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid transparent;transition:all .2s}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-content{display:none;flex:1;overflow:hidden;flex-direction:column}
+.tab-content.active{display:flex}
+
+/* Stats */
+#stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.stat-item{background:var(--bg);padding:4px 6px;border-radius:3px;font-size:9px}
+.stat-item .label{color:var(--text-dim)}
+.stat-item .value{font-weight:bold}
+
+/* Philo Table */
+#philo-table{width:100%;border-collapse:collapse;font-size:9px}
+#philo-table th{text-align:left;padding:2px 4px;color:var(--text-dim);border-bottom:1px solid var(--border)}
+#philo-table td{padding:2px 4px;border-bottom:1px solid var(--border)}
+#philo-table tr{cursor:pointer;transition:background .1s}
+#philo-table tr:hover{background:rgba(255,255,255,.04)}
+#philo-table tr.selected{background:rgba(233,69,96,.15)}
+.state-badge{display:inline-block;padding:1px 4px;border-radius:3px;font-size:8px;font-weight:bold}
+.state-eating{background:var(--eating);color:#000}
+.state-sleeping{background:var(--sleeping);color:#fff}
+.state-thinking{background:var(--thinking);color:#000}
+.state-dead{background:var(--dead);color:#fff}
+.state-has_fork{background:var(--has-fork);color:#000}
+
+/* Issues */
+#issues-summary{display:flex;gap:8px;padding:6px 10px;background:var(--bg);border-radius:4px;margin-bottom:6px;align-items:center;flex-wrap:wrap}
+.issue-count{font-size:11px;font-weight:bold;display:flex;align-items:center;gap:3px}
+.issue-count .dot{width:7px;height:7px;border-radius:50%}
+.issue-count.errors .dot{background:var(--error)}
+.issue-count.warnings .dot{background:var(--warn)}
+.issue-count.infos .dot{background:var(--info)}
+#issues-verdict{font-size:10px;font-weight:bold;margin-left:auto;padding:2px 6px;border-radius:3px}
+.verdict-pass{background:var(--ok);color:#000}
+.verdict-fail{background:var(--error);color:#fff}
+.verdict-warn{background:var(--warn);color:#000}
+#issues-list{flex:1;overflow-y:auto;padding:0 10px 10px}
+.issue-item{display:flex;gap:6px;padding:5px 6px;margin-bottom:3px;background:var(--bg);border-radius:3px;cursor:pointer;align-items:flex-start;border-left:3px solid transparent;font-size:10px;line-height:1.4}
+.issue-item:hover{background:#1e2a4a}
+.issue-item.error{border-left-color:var(--error)}
+.issue-item.warn{border-left-color:var(--warn)}
+.issue-item.info{border-left-color:var(--info)}
+.issue-severity{font-size:8px;font-weight:bold;padding:1px 3px;border-radius:2px;white-space:nowrap;flex-shrink:0}
+.sev-error{background:var(--error);color:#fff}
+.sev-warn{background:var(--warn);color:#000}
+.sev-info{background:var(--info);color:#fff}
+.issue-ts{color:var(--text-dim);white-space:nowrap;flex-shrink:0;min-width:40px;text-align:right}
+.issue-desc{flex:1}
+.issue-philo{font-weight:bold;color:var(--accent)}
+.issue-item.active{background:rgba(233,69,96,.15)}
+.no-params-hint{font-size:9px;color:var(--text-dim);font-style:italic;padding:3px 0}
+
+/* Event Log */
+#event-log{flex:1;overflow-y:auto;padding:6px 10px;font-size:10px;line-height:1.5}
+#event-log .ev{padding:1px 0;border-bottom:1px solid rgba(255,255,255,.03);cursor:pointer}
+#event-log .ev:hover{background:rgba(255,255,255,.04)}
+#event-log .ev.hidden{display:none}
+#event-log .ev-ts{color:var(--text-dim);margin-right:5px}
+#event-log .ev-id{font-weight:bold;margin-right:3px;cursor:pointer}
+#event-log .ev-id:hover{text-decoration:underline}
+#event-log .ev-dead{color:var(--dead);font-weight:bold}
+</style>
+</head>
+<body>
+<header>
+  <h1>PHILO<span>SOPHERS</span> VISUALIZER + TESTER</h1>
+  <div id="legend">
+    <div class="legend-item"><span class="legend-dot" style="background:var(--thinking)"></span>Think</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--eating)"></span>Eat</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--sleeping)"></span>Sleep</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--has-fork)"></span>Fork</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--dead)"></span>Dead</div>
+  </div>
+</header>
+
+<div id="input-panel">
+  <textarea id="output-input" placeholder="Paste ./philo output here..."></textarea>
+  <div class="params-group">
+    <label>Parameters (optional, for extra checks)</label>
+    <div class="params-row">
+      <div><label>time_to_die</label><input type="number" id="p-die" placeholder="ms"></div>
+      <div><label>time_to_eat</label><input type="number" id="p-eat" placeholder="ms"></div>
+    </div>
+    <div class="params-row">
+      <div><label>time_to_sleep</label><input type="number" id="p-sleep" placeholder="ms"></div>
+      <div><label>meals</label><input type="number" id="p-meals" placeholder="-"></div>
+    </div>
+  </div>
+  <div class="btn-group">
+    <button class="btn btn-primary" onclick="loadFromTextarea()">Load + Analyze</button>
+    <button class="btn btn-secondary" onclick="document.getElementById('file-input').click()">Load File</button>
+    <input type="file" id="file-input" accept=".log,.txt" onchange="loadFromFile(event)">
+    <button class="btn btn-secondary" onclick="loadDemo()">Demo</button>
+  </div>
+</div>
+
+<div id="main">
+  <div id="viz-area">
+    <div id="canvas-wrapper"><canvas id="canvas"></canvas></div>
+    <div id="bottom-panel">
+      <div id="playback-bar">
+        <button class="btn btn-primary" id="play-btn" onclick="togglePlay()">Play</button>
+        <select id="speed-select" onchange="setSpeed(this.value)">
+          <option value="0.25">0.25x</option><option value="0.5">0.5x</option>
+          <option value="1" selected>1x</option><option value="2">2x</option>
+          <option value="4">4x</option><option value="8">8x</option><option value="16">16x</option>
+        </select>
+        <span id="time-display">0 ms</span>
+        <div id="filter-info">
+          <span id="filter-label"></span>
+          <button class="btn btn-secondary btn-sm" id="clear-filter-btn" style="display:none" onclick="selectPhilo(null)">Clear</button>
+        </div>
+      </div>
+      <div id="tl-wrapper"><canvas id="tl-canvas"></canvas></div>
+    </div>
+  </div>
+  <div id="sidebar">
+    <div class="sidebar-section">
+      <h3>Stats</h3>
+      <div id="stats-grid"></div>
+    </div>
+    <div class="sidebar-section">
+      <h3>Philosophers <span style="font-size:9px;color:var(--text-dim);font-weight:normal">(click to filter)</span></h3>
+      <div style="max-height:140px;overflow-y:auto">
+        <table id="philo-table">
+          <thead><tr><th>#</th><th>State</th><th>Meals</th><th>Last</th></tr></thead>
+          <tbody id="philo-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('issues')">Issues</button>
+      <button class="tab-btn" onclick="switchTab('log')">Event Log</button>
+    </div>
+    <div class="tab-content active" id="tab-issues">
+      <div style="padding:8px 10px 0"><div id="issues-summary"></div></div>
+      <div id="issues-list"></div>
+    </div>
+    <div class="tab-content" id="tab-log">
+      <div id="event-log"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== GLOBALS =====
+let events=[], numPhilos=0, maxTime=0, issues=[], simParams=null, rawLines=[];
+let playing=false, currentTime=0, speed=1, animFrame=null, lastFrameTs=null;
+let selectedPhilo = null;
+let stateIntervals = {};
+
+const VALID_ACTIONS = ['is eating','is sleeping','is thinking','has taken a fork','died'];
+const stateColors = {thinking:'#ffd740',eating:'#00c853',sleeping:'#448aff',has_fork:'#00bcd4',dead:'#e94560'};
+
+function actionToState(a){
+  if(a==='is eating')return'eating';if(a==='is sleeping')return'sleeping';
+  if(a==='is thinking')return'thinking';if(a==='has taken a fork')return'has_fork';
+  if(a==='died')return'dead';return'unknown';
+}
+
+// ===== PARSING =====
+function parseOutput(text){
+  const lines=text.trim().split('\n'), parsed=[], raw=[];
+  let maxId=0;
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i].trim(); if(!line)continue;
+    const m=line.match(/^\s*(\d+)\s+(\d+)\s+(.+?)\s*$/);
+    if(m){const id=+m[2];if(id>maxId)maxId=id;parsed.push({timestamp:+m[1],philosopher:id,action:m[3].trim(),lineNum:i+1,raw:line})}
+    raw.push({lineNum:i+1,text:line,parsed:!!m});
+  }
+  return{events:parsed,numPhilos:maxId,rawLines:raw};
+}
+
+// ===== STATE INTERVALS (for Gantt timeline) =====
+function computeStateIntervals(){
+  const ivs={};
+  for(let id=1;id<=numPhilos;id++){
+    ivs[id]=[];
+    let cur='thinking', start=0;
+    for(const ev of events){
+      if(ev.philosopher!==id)continue;
+      const st=actionToState(ev.action);
+      if(st!==cur&&st!=='unknown'){
+        if(start<ev.timestamp)ivs[id].push({start,end:ev.timestamp,state:cur});
+        cur=st;start=ev.timestamp;
+      }
+    }
+    ivs[id].push({start,end:maxTime,state:cur});
+  }
+  return ivs;
+}
+
+// ===== ANALYSIS ENGINE =====
+function runAnalysis(events,numPhilos,rawLines,params){
+  const issues=[];
+  const add=(sev,ts,desc,philo)=>issues.push({severity:sev,timestamp:ts,description:desc,philosopher:philo||null});
+  for(const rl of rawLines){if(!rl.parsed)add('error',-1,`Line ${rl.lineNum}: invalid format "${rl.text.substring(0,50)}"`)}
+  for(const ev of events){if(!VALID_ACTIONS.includes(ev.action))add('error',ev.timestamp,`Unknown action "${ev.action}"`,ev.philosopher)}
+  for(const ev of events){if(ev.philosopher<1||ev.philosopher>numPhilos)add('error',ev.timestamp,`ID ${ev.philosopher} out of range`,ev.philosopher)}
+  let tsV=0;for(let i=1;i<events.length;i++){if(events[i].timestamp<events[i-1].timestamp){tsV++;if(tsV<=5)add('warn',events[i].timestamp,`Timestamp backward: ${events[i].timestamp}ms after ${events[i-1].timestamp}ms`)}}
+  if(tsV>5)add('warn',-1,`${tsV-5} more timestamp violations (${tsV} total)`);
+  const dIdx=events.findIndex(e=>e.action==='died');
+  if(dIdx>=0){const dTs=events[dIdx].timestamp;let ac=0;for(let i=dIdx+1;i<events.length;i++){if(events[i].timestamp>dTs){ac++;if(ac<=3)add('error',events[i].timestamp,`Message ${events[i].timestamp-dTs}ms after death: "${events[i].philosopher} ${events[i].action}"`,events[i].philosopher)}}if(ac>3)add('error',dTs,`${ac-3} more messages after death (${ac} total)`)}
+  const pe={};for(let i=1;i<=numPhilos;i++)pe[i]=[];for(const ev of events)if(ev.philosopher>=1&&ev.philosopher<=numPhilos)pe[ev.philosopher].push(ev);
+  for(let id=1;id<=numPhilos;id++){let fc=0;for(const ev of pe[id]){const st=actionToState(ev.action);if(st==='has_fork')fc++;else if(st==='eating'){if(fc<1)add('error',ev.timestamp,'Eating without "has taken a fork"',id);fc=0}else if(st==='sleeping'||st==='thinking'||st==='dead')fc=0}}
+  const vt={thinking:['has_fork','dead'],has_fork:['has_fork','eating','dead'],eating:['sleeping','dead'],sleeping:['thinking','dead'],dead:[]};
+  for(let id=1;id<=numPhilos;id++){let ps='thinking';for(const ev of pe[id]){const st=actionToState(ev.action);if(st==='unknown')continue;if(vt[ps]&&!vt[ps].includes(st))add('warn',ev.timestamp,`Invalid transition: ${ps} -> ${st}`,id);ps=st}}
+  const ei={};for(let id=1;id<=numPhilos;id++){ei[id]=[];let es=null;for(const ev of pe[id]){const st=actionToState(ev.action);if(st==='eating')es=ev.timestamp;else if(es!==null){ei[id].push({start:es,end:ev.timestamp});es=null}}if(es!==null)ei[id].push({start:es,end:maxTime||es+1})}
+  function iovl(a,b){for(const ia of a)for(const ib of b)if(ia.start<ib.end&&ib.start<ia.end)return Math.max(ia.start,ib.start);return null}
+  let fc=0;for(let id=1;id<=numPhilos;id++){const nb=(id%numPhilos)+1;const ov=iovl(ei[id],ei[nb]);if(ov!==null){fc++;if(fc<=5)add('error',ov,`Fork conflict! P${id} and P${nb} eat simultaneously`,id)}}
+  if(fc>5)add('error',-1,`${fc-5} more fork conflicts (${fc} total)`);
+  const mc={};for(let id=1;id<=numPhilos;id++)mc[id]=pe[id].filter(e=>e.action==='is eating').length;
+  const minM=Math.min(...Object.values(mc)),maxM=Math.max(...Object.values(mc));
+  if(numPhilos>1&&maxM>0&&maxM-minM>Math.max(2,maxM*.5)){const s=Object.entries(mc).filter(([_,c])=>c===minM).map(([id])=>id);add('warn',-1,`Starvation: meal imbalance (min=${minM},max=${maxM}). Least fed: P${s.join(',P')}`)}
+  if(numPhilos>1)for(let id=1;id<=numPhilos;id++)if(mc[id]===0)add('info',-1,`Philosopher ${id} never ate`,id);
+  if(params){
+    const{die,eat,sleep,meals}=params;
+    if(die>0)for(let id=1;id<=numPhilos;id++){const de=pe[id].find(e=>e.action==='died');if(!de)continue;const le=[...pe[id]].reverse().find(e=>e.action==='is eating'&&e.timestamp<de.timestamp);const gap=de.timestamp-(le?le.timestamp:0);if(gap>die+10)add('error',de.timestamp,`Death ${gap-die}ms late (gap=${gap}ms, limit=${die}+10ms)`,id)}
+    if(die>0&&eat>0&&sleep>0&&numPhilos>1){const odd=numPhilos%2!==0;const ok=odd?die>eat*2+sleep:die>eat+sleep;if(ok&&events.some(e=>e.action==='died')){const d=events.find(e=>e.action==='died');add('error',d.timestamp,`Unexpected death! ${odd?`die(${die})>2*eat(${eat*2})+sleep(${sleep})`:`die(${die})>eat(${eat})+sleep(${sleep})`}`,d.philosopher)}}
+    if(numPhilos===1){if(!events.some(e=>e.action==='died'))add('error',-1,'1 philosopher must die (1 fork)');else if(die>0){const d=events.find(e=>e.action==='died');if(d.timestamp>die+10)add('error',d.timestamp,`Died at ${d.timestamp}ms, expected ~${die}ms`,1)}}
+    if(meals>0&&numPhilos>1){const allAte=Object.values(mc).every(c=>c>=meals);if(!allAte&&!events.some(e=>e.action==='died')){const miss=Object.entries(mc).filter(([_,c])=>c<meals).map(([id,c])=>`#${id}(${c}/${meals})`);add('warn',-1,`Not all ate ${meals} times: ${miss.join(', ')}`)}if(allAte)add('info',-1,`All ate >= ${meals} time(s)`)}
+    if(eat>0)for(let id=1;id<=numPhilos;id++){for(const iv of ei[id]){if(iv.end-iv.start<eat-5){add('warn',iv.start,`Eat duration ${iv.end-iv.start}ms < ${eat}ms`,id);break}}}
+  }
+  if(events.some(e=>e.action==='died')){const d=events.find(e=>e.action==='died');add('info',d.timestamp,`Death of P${d.philosopher} at ${d.timestamp}ms`,d.philosopher)}else add('info',-1,'No death -- simulation ended normally');
+  const so={error:0,warn:1,info:2};issues.sort((a,b)=>so[a.severity]!==so[b.severity]?so[a.severity]-so[b.severity]:a.timestamp-b.timestamp);
+  return issues;
+}
+
+// ===== STATE AT TIME =====
+function getStateAt(time){
+  const states={},meals={},lastMeal={},forkCount={};let deathEvent=null;
+  for(let i=1;i<=numPhilos;i++){states[i]='thinking';meals[i]=0;lastMeal[i]=0;forkCount[i]=0}
+  for(const ev of events){
+    if(ev.timestamp>time)break;const id=ev.philosopher,st=actionToState(ev.action);states[id]=st;
+    if(st==='has_fork')forkCount[id]=Math.min((forkCount[id]||0)+1,2);
+    else if(st==='eating'){meals[id]++;lastMeal[id]=ev.timestamp;forkCount[id]=2}
+    else if(st==='sleeping'||st==='thinking')forkCount[id]=0;
+    else if(st==='dead'&&!deathEvent)deathEvent=ev;
+  }
+  const forks={};for(let i=0;i<numPhilos;i++)forks[i]=null;
+  for(let id=1;id<=numPhilos;id++){if(forkCount[id]>=2||states[id]==='eating'){forks[(id-1)%numPhilos]=id;forks[id%numPhilos]=id}else if(forkCount[id]===1)forks[(id-1)%numPhilos]=id}
+  return{states,meals,lastMeal,forks,forkCount,deathEvent};
+}
+
+// ===== LOADING =====
+function getParams(){
+  const d=+document.getElementById('p-die').value,e=+document.getElementById('p-eat').value,s=+document.getElementById('p-sleep').value,m=+document.getElementById('p-meals').value;
+  if(isNaN(d)&&isNaN(e)&&isNaN(s))return null;
+  return{die:isNaN(d)?0:d,eat:isNaN(e)?0:e,sleep:isNaN(s)?0:s,meals:isNaN(m)?0:m};
+}
+function loadFromTextarea(){const t=document.getElementById('output-input').value;if(t.trim())loadData(t)}
+function loadFromFile(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{document.getElementById('output-input').value=ev.target.result;loadData(ev.target.result)};r.readAsText(f)}
+function loadDemo(){
+  const demo=`0 1 is thinking\n0 1 has taken a fork\n0 2 is thinking\n0 3 is thinking\n1 1 has taken a fork\n1 1 is eating\n1 2 has taken a fork\n1 3 has taken a fork\n201 1 is sleeping\n201 2 has taken a fork\n201 2 is eating\n202 3 has taken a fork\n202 3 is eating\n401 1 is thinking\n401 2 is sleeping\n402 3 is sleeping\n401 1 has taken a fork\n402 1 has taken a fork\n402 1 is eating\n602 2 is thinking\n602 1 is sleeping\n602 3 is thinking\n603 2 has taken a fork\n603 2 has taken a fork\n603 2 is eating\n604 3 has taken a fork\n803 2 is sleeping\n803 1 is thinking\n804 3 has taken a fork\n804 3 is eating\n804 1 has taken a fork\n805 1 has taken a fork\n805 1 is eating\n1004 3 is sleeping\n1005 1 is sleeping\n1005 2 is thinking\n1006 2 has taken a fork\n1006 2 has taken a fork\n1006 2 is eating`;
+  document.getElementById('output-input').value=demo;
+  document.getElementById('p-die').value='800';document.getElementById('p-eat').value='200';
+  document.getElementById('p-sleep').value='200';document.getElementById('p-meals').value='';
+  loadData(demo);
+}
+
+function loadData(text){
+  const r=parseOutput(text);events=r.events;numPhilos=r.numPhilos;rawLines=r.rawLines;
+  if(!events.length||!numPhilos){alert('No valid output found.');return}
+  maxTime=events[events.length-1].timestamp;simParams=getParams();
+  currentTime=0;playing=false;lastFrameTs=null;selectedPhilo=null;
+  document.getElementById('play-btn').textContent='Play';
+  document.getElementById('main').classList.add('active');
+  stateIntervals=computeStateIntervals();
+  issues=runAnalysis(events,numPhilos,rawLines,simParams);
+  initCanvas();initTimelineCanvas();
+  updateStats();buildPhiloTable();buildEventLog();buildIssuesPanel();
+  updateFilterDisplay();switchTab('issues');render();
+}
+
+// ===== SELECTION / FILTERING =====
+function selectPhilo(id){
+  selectedPhilo=(id===selectedPhilo)?null:id;
+  updateFilterDisplay();filterEventLog();render();
+  // Scroll philo table
+  if(selectedPhilo){const row=document.getElementById(`pr-${selectedPhilo}`);if(row)row.scrollIntoView({block:'nearest'})}
+}
+
+function updateFilterDisplay(){
+  const lbl=document.getElementById('filter-label');
+  const btn=document.getElementById('clear-filter-btn');
+  if(selectedPhilo){lbl.textContent=`Philosopher ${selectedPhilo}`;btn.style.display=''}
+  else{lbl.textContent='All philosophers';btn.style.display='none'}
+}
+
+function filterEventLog(){
+  document.querySelectorAll('#event-log .ev').forEach((el,i)=>{
+    if(!selectedPhilo||events[i].philosopher===selectedPhilo)el.classList.remove('hidden');
+    else el.classList.add('hidden');
+  });
+  lastHighlighted=-1;
+}
+
+// ===== TABS =====
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.querySelector(`.tab-btn[onclick="switchTab('${name}')"]`).classList.add('active');
+}
+
+// ===== ISSUES PANEL =====
+function buildIssuesPanel(){
+  const ec=issues.filter(i=>i.severity==='error').length,wc=issues.filter(i=>i.severity==='warn').length,ic=issues.filter(i=>i.severity==='info').length;
+  let vc,vt;if(!ec&&!wc){vc='verdict-pass';vt='PASS'}else if(!ec){vc='verdict-warn';vt='WARN'}else{vc='verdict-fail';vt='FAIL'}
+  const s=document.getElementById('issues-summary');
+  s.innerHTML=`<span class="issue-count errors"><span class="dot"></span>${ec} err</span><span class="issue-count warnings"><span class="dot"></span>${wc} warn</span><span class="issue-count infos"><span class="dot"></span>${ic} info</span><span id="issues-verdict" class="${vc}">${vt}</span>`;
+  if(!simParams)s.innerHTML+=`<div class="no-params-hint">Fill parameters for timing checks</div>`;
+  const list=document.getElementById('issues-list');let h='';
+  for(let i=0;i<issues.length;i++){const iss=issues[i];const sl=iss.severity==='error'?'ERR':iss.severity==='warn'?'WARN':'INFO';
+    h+=`<div class="issue-item ${iss.severity}" onclick="jumpToIssue(${i})"><span class="issue-severity sev-${iss.severity}">${sl}</span><span class="issue-ts">${iss.timestamp>=0?iss.timestamp+'ms':'--'}</span><span class="issue-desc">${iss.philosopher?`<span class="issue-philo">P${iss.philosopher}</span> `:''}${escapeHtml(iss.description)}</span></div>`}
+  list.innerHTML=h;
+}
+function escapeHtml(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML}
+function jumpToIssue(idx){const iss=issues[idx];if(iss.timestamp>=0){currentTime=iss.timestamp;if(iss.philosopher)selectPhilo(iss.philosopher);render()}document.querySelectorAll('.issue-item').forEach(el=>el.classList.remove('active'));document.querySelectorAll('.issue-item')[idx]?.classList.add('active')}
+
+// ===== MAIN CANVAS =====
+const canvas=document.getElementById('canvas'), ctx=canvas.getContext('2d');
+let dpr=1, cw=0, ch=0;
+
+function initCanvas(){
+  dpr=window.devicePixelRatio||1;const w=document.getElementById('canvas-wrapper');
+  cw=w.clientWidth;ch=w.clientHeight;
+  canvas.width=cw*dpr;canvas.height=ch*dpr;canvas.style.width=cw+'px';canvas.style.height=ch+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+
+canvas.addEventListener('click',e=>{
+  if(!numPhilos)return;
+  const rect=canvas.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;
+  const cx2=cw/2,cy2=ch/2,philoR=Math.min(cx2,cy2)*.68,cs=Math.max(14,Math.min(28,200/numPhilos));
+  for(let i=1;i<=numPhilos;i++){
+    const a=(2*Math.PI*(i-1))/numPhilos-Math.PI/2;
+    const px=cx2+Math.cos(a)*philoR,py=cy2+Math.sin(a)*philoR;
+    if(Math.sqrt((x-px)**2+(y-py)**2)<=cs+8){selectPhilo(i);return}
+  }
+  if(selectedPhilo)selectPhilo(null);
+});
+
+window.addEventListener('resize',()=>{if(numPhilos>0){initCanvas();initTimelineCanvas();render()}});
+
+function render(){
+  const state=getStateAt(currentTime);
+  drawScene(state);drawTimeline();updatePhiloTable(state);
+  document.getElementById('time-display').textContent=Math.round(currentTime)+' ms';
+  highlightEventLog();
+}
+
+function drawScene(state){
+  ctx.clearRect(0,0,cw,ch);
+  const cx2=cw/2,cy2=ch/2,tableR=Math.min(cx2,cy2)*.42,philoR=Math.min(cx2,cy2)*.68;
+  const cs=Math.max(14,Math.min(28,200/numPhilos)),fl=Math.max(7,cs*.5);
+  // Table
+  ctx.beginPath();ctx.arc(cx2,cy2,tableR,0,Math.PI*2);ctx.fillStyle='#3e2723';ctx.fill();ctx.strokeStyle='#5d4037';ctx.lineWidth=3;ctx.stroke();
+  ctx.beginPath();ctx.arc(cx2,cy2,tableR*.55,0,Math.PI*2);ctx.strokeStyle='#4e342e';ctx.lineWidth=1;ctx.stroke();
+  // Forks
+  for(let i=0;i<numPhilos;i++){
+    const a1=(2*Math.PI*i)/numPhilos-Math.PI/2,a2=(2*Math.PI*((i+1)%numPhilos))/numPhilos-Math.PI/2,fa=(a1+a2)/2;
+    const fx=cx2+Math.cos(fa)*(tableR+cs*.3),fy=cy2+Math.sin(fa)*(tableR+cs*.3),held=state.forks[i]!==null;
+    ctx.save();ctx.translate(fx,fy);ctx.rotate(fa+Math.PI/2);
+    ctx.strokeStyle=held?'#ff9100':'#555';ctx.lineWidth=held?2.5:1.5;
+    ctx.beginPath();ctx.moveTo(0,-fl);ctx.lineTo(0,fl);ctx.moveTo(-fl*.3,-fl);ctx.lineTo(-fl*.3,-fl*.4);ctx.moveTo(fl*.3,-fl);ctx.lineTo(fl*.3,-fl*.4);ctx.stroke();
+    if(held){ctx.fillStyle='rgba(255,145,0,.12)';ctx.beginPath();ctx.arc(0,0,fl*.8,0,Math.PI*2);ctx.fill()}
+    ctx.restore();
+  }
+  // Philosophers
+  for(let i=1;i<=numPhilos;i++){
+    const angle=(2*Math.PI*(i-1))/numPhilos-Math.PI/2;
+    const px=cx2+Math.cos(angle)*philoR,py=cy2+Math.sin(angle)*philoR;
+    const pS=state.states[i]||'thinking',color=stateColors[pS]||'#888';
+    const dimmed=selectedPhilo&&selectedPhilo!==i;
+    ctx.globalAlpha=dimmed?.2:1;
+    // Glow
+    ctx.beginPath();ctx.arc(px,py,cs+(selectedPhilo===i?6:4),0,Math.PI*2);ctx.fillStyle=color+(selectedPhilo===i?'55':'33');ctx.fill();
+    // Circle
+    ctx.beginPath();ctx.arc(px,py,cs,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+    ctx.strokeStyle=selectedPhilo===i?'#fff':'rgba(255,255,255,.7)';ctx.lineWidth=selectedPhilo===i?3:2;ctx.stroke();
+    // ID
+    ctx.fillStyle=pS==='dead'?'#fff':'#000';ctx.font=`bold ${Math.max(9,cs*.65)}px Courier New`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(i,px,py);
+    // Labels
+    ctx.fillStyle=color;ctx.font=`${Math.max(8,cs*.38)}px Courier New`;ctx.fillText(pS.replace('has_fork','fork'),px,py+cs+12);
+    ctx.fillStyle='#999';ctx.font=`${Math.max(7,cs*.32)}px Courier New`;ctx.fillText(`${state.meals[i]} meals`,px,py+cs+22);
+    ctx.globalAlpha=1;
+  }
+  if(state.deathEvent){ctx.fillStyle='rgba(233,69,96,.06)';ctx.fillRect(0,0,cw,ch);ctx.fillStyle='#e94560';ctx.font='bold 13px Courier New';ctx.textAlign='center';ctx.fillText(`Philosopher ${state.deathEvent.philosopher} died at ${state.deathEvent.timestamp}ms`,cx2,20)}
+}
+
+// ===== TIMELINE CANVAS (Gantt chart) =====
+const tlCanvas=document.getElementById('tl-canvas'),tlCtx=tlCanvas.getContext('2d');
+let tlW=0,tlH=0,tlRowH=0,tlLabelW=0;
+
+function initTimelineCanvas(){
+  dpr=window.devicePixelRatio||1;
+  const wrapper=document.getElementById('tl-wrapper');
+  tlW=wrapper.clientWidth;
+  tlRowH=Math.max(4,Math.min(22,240/numPhilos));
+  tlH=numPhilos*tlRowH;
+  tlLabelW=Math.max(24,8+String(numPhilos).length*8);
+  tlCanvas.width=tlW*dpr;tlCanvas.height=tlH*dpr;
+  tlCanvas.style.width=tlW+'px';tlCanvas.style.height=tlH+'px';
+  tlCtx.setTransform(dpr,0,0,dpr,0,0);
+}
+
+function drawTimeline(){
+  const tc=tlCtx,w=tlW,h=tlH,rh=tlRowH,lw=tlLabelW,bw=w-lw;
+  tc.clearRect(0,0,w,h);
+  if(maxTime<=0)return;
+
+  for(let id=1;id<=numPhilos;id++){
+    const y=(id-1)*rh;
+    const isSel=selectedPhilo===id, isDimmed=selectedPhilo&&!isSel;
+    // Row bg
+    tc.fillStyle=isSel?'#1e2a4a':'#0e0e1e';
+    tc.fillRect(0,y,w,rh);
+    // Label
+    tc.fillStyle=isSel?'#e94560':isDimmed?'#444':'#888';
+    tc.font=`${Math.min(11,rh-2)}px Courier New`;tc.textAlign='right';tc.textBaseline='middle';
+    tc.fillText(id,lw-4,y+rh/2);
+    // State bars
+    tc.globalAlpha=isDimmed?.15:1;
+    for(const iv of stateIntervals[id]){
+      const x1=lw+(iv.start/maxTime)*bw, x2=lw+(iv.end/maxTime)*bw;
+      tc.fillStyle=stateColors[iv.state]||'#222';
+      tc.fillRect(x1,y+(rh>6?1:0),Math.max(1,x2-x1),rh-(rh>6?2:0));
+    }
+    tc.globalAlpha=1;
+    // Selection border
+    if(isSel){tc.strokeStyle='#e94560';tc.lineWidth=1;tc.strokeRect(lw,y,bw,rh)}
+    // Row separator
+    if(rh>4){tc.strokeStyle='rgba(255,255,255,.05)';tc.lineWidth=.5;tc.beginPath();tc.moveTo(lw,y+rh);tc.lineTo(w,y+rh);tc.stroke()}
+  }
+
+  // Issue markers
+  for(const iss of issues){
+    if(iss.timestamp<0||iss.severity==='info')continue;
+    const x=lw+(iss.timestamp/maxTime)*bw;
+    tc.fillStyle=iss.severity==='error'?'rgba(233,69,96,.4)':'rgba(255,167,38,.35)';
+    tc.fillRect(x-1,0,2,h);
+  }
+
+  // Cursor
+  const cx=lw+(currentTime/maxTime)*bw;
+  tc.strokeStyle='#fff';tc.lineWidth=1.5;tc.beginPath();tc.moveTo(cx,0);tc.lineTo(cx,h);tc.stroke();
+  // Cursor time label
+  tc.fillStyle='rgba(0,0,0,.7)';const tw2=36;tc.fillRect(cx-tw2/2,0,tw2,12);
+  tc.fillStyle='#fff';tc.font='9px Courier New';tc.textAlign='center';tc.textBaseline='top';
+  tc.fillText(Math.round(currentTime)+'ms',cx,1);
+}
+
+// Timeline interaction
+let tlDragging=false;
+const tlEl=document.getElementById('tl-canvas');
+function tlTimeFromX(x){const bw=tlW-tlLabelW;return Math.max(0,Math.min(maxTime,((x-tlLabelW)/bw)*maxTime))}
+function tlPhiloFromY(y){return Math.min(numPhilos,Math.floor(y/tlRowH)+1)}
+
+tlEl.addEventListener('mousedown',e=>{
+  const rect=tlEl.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;
+  if(x<=tlLabelW){selectPhilo(tlPhiloFromY(y))}
+  else{tlDragging=true;currentTime=tlTimeFromX(x);render()}
+});
+tlEl.addEventListener('mousemove',e=>{
+  if(!tlDragging)return;
+  const x=e.clientX-tlEl.getBoundingClientRect().left;
+  currentTime=tlTimeFromX(x);render();
+});
+document.addEventListener('mouseup',()=>{tlDragging=false});
+tlEl.addEventListener('dblclick',e=>{
+  const rect=tlEl.getBoundingClientRect(),y=e.clientY-rect.top;
+  selectPhilo(tlPhiloFromY(y));
+});
+
+// ===== SIDEBAR =====
+function updateStats(){
+  const grid=document.getElementById('stats-grid');
+  const tot=events.length,deaths=events.filter(e=>e.action==='died').length,meals=events.filter(e=>e.action==='is eating').length,errs=issues.filter(i=>i.severity==='error').length;
+  grid.innerHTML=`
+    <div class="stat-item"><div class="label">Philosophers</div><div class="value">${numPhilos}</div></div>
+    <div class="stat-item"><div class="label">Duration</div><div class="value">${maxTime}ms</div></div>
+    <div class="stat-item"><div class="label">Events</div><div class="value">${tot}</div></div>
+    <div class="stat-item"><div class="label">Deaths</div><div class="value" style="color:${deaths?'var(--dead)':'var(--eating)'}">${deaths}</div></div>
+    <div class="stat-item"><div class="label">Total Meals</div><div class="value">${meals}</div></div>
+    <div class="stat-item"><div class="label">Issues</div><div class="value" style="color:${errs?'var(--error)':'var(--ok)'}">${errs} err</div></div>`;
+}
+
+function buildPhiloTable(){
+  const tbody=document.getElementById('philo-tbody');let h='';
+  for(let i=1;i<=numPhilos;i++)h+=`<tr id="pr-${i}" onclick="selectPhilo(${i})"><td>${i}</td><td id="ps-${i}"></td><td id="pm-${i}">0</td><td id="pl-${i}">-</td></tr>`;
+  tbody.innerHTML=h;
+}
+
+function updatePhiloTable(state){
+  for(let i=1;i<=numPhilos;i++){
+    const st=state.states[i]||'thinking';const row=document.getElementById(`pr-${i}`);
+    if(row){row.classList.toggle('selected',selectedPhilo===i)}
+    document.getElementById(`ps-${i}`).innerHTML=`<span class="state-badge state-${st}">${st.replace('has_fork','fork')}</span>`;
+    document.getElementById(`pm-${i}`).textContent=state.meals[i];
+    document.getElementById(`pl-${i}`).textContent=state.lastMeal[i]>0?state.lastMeal[i]+'ms':'-';
+  }
+}
+
+function buildEventLog(){
+  const log=document.getElementById('event-log');let h='';
+  for(let i=0;i<events.length;i++){
+    const ev=events[i],isDeath=ev.action==='died';
+    h+=`<div class="ev" id="ev-${i}" data-philo="${ev.philosopher}" onclick="currentTime=${ev.timestamp};render();">`+
+      `<span class="ev-ts">${String(ev.timestamp).padStart(6)}</span>`+
+      `<span class="ev-id" style="color:${stateColors[actionToState(ev.action)]||'#888'}" onclick="event.stopPropagation();selectPhilo(${ev.philosopher})">${ev.philosopher}</span> `+
+      `<span class="${isDeath?'ev-dead':''}">${ev.action}</span></div>`;
+  }
+  log.innerHTML=h;
+}
+
+let lastHighlighted=-1;
+function highlightEventLog(){
+  let idx=-1;
+  for(let i=0;i<events.length;i++){
+    const el=document.getElementById(`ev-${i}`);
+    if(!el||el.classList.contains('hidden'))continue;
+    if(events[i].timestamp<=currentTime)idx=i;else break;
+  }
+  if(idx===lastHighlighted)return;
+  if(lastHighlighted>=0){const p=document.getElementById(`ev-${lastHighlighted}`);if(p)p.style.background=''}
+  if(idx>=0){const el=document.getElementById(`ev-${idx}`);if(el){el.style.background='rgba(233,69,96,.18)';el.scrollIntoView({block:'nearest',behavior:'smooth'})}}
+  lastHighlighted=idx;
+}
+
+// ===== PLAYBACK =====
+function togglePlay(){
+  playing=!playing;document.getElementById('play-btn').textContent=playing?'Pause':'Play';
+  if(playing){if(currentTime>=maxTime)currentTime=0;lastFrameTs=performance.now();animFrame=requestAnimationFrame(animate)}
+  else cancelAnimationFrame(animFrame);
+}
+function animate(ts){
+  if(!playing)return;currentTime+=(ts-lastFrameTs)*speed;lastFrameTs=ts;
+  if(currentTime>=maxTime){currentTime=maxTime;playing=false;document.getElementById('play-btn').textContent='Play'}
+  render();if(playing)animFrame=requestAnimationFrame(animate);
+}
+function setSpeed(v){speed=parseFloat(v)}
+
+// ===== KEYBOARD =====
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='TEXTAREA'||e.target.tagName==='INPUT')return;
+  if(e.code==='Space'){e.preventDefault();togglePlay()}
+  else if(e.code==='ArrowRight'){currentTime=Math.min(maxTime,currentTime+50*speed);render()}
+  else if(e.code==='ArrowLeft'){currentTime=Math.max(0,currentTime-50*speed);render()}
+  else if(e.code==='Escape'&&selectedPhilo)selectPhilo(null);
+});
+</script>
+</body>
+</html>
